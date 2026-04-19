@@ -2,6 +2,7 @@ services:
   - type: web
     name: arthavault-api
     runtime: python
+    pythonVersion: "3.11.9"
     buildCommand: |
       apt-get install -y libmagic1 &&
       pip install -r requirements.txt
