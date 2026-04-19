@@ -2,11 +2,13 @@
 One-time migration: move all transactions from old_user_id to current_user_id.
 Run: .venv\Scripts\python.exe migrate_user_transactions.py
 """
-import asyncio, sys
-sys.path.insert(0, ".")
+import os
 
-OLD_USER_ID = "69e3eafd28176e9f8d5f0adc"   # ronitpal2003@gmail.com
-NEW_USER_ID = "69cf95263171f4f6a018df33"   # devildec1011@gmail.com (current login)
+# Set these via environment variables or pass as CLI args before running:
+#   OLD_USER_ID = the old MongoDB _id string of the user whose transactions to migrate
+#   NEW_USER_ID = the new MongoDB _id string to reassign transactions to
+OLD_USER_ID = os.environ.get("OLD_USER_ID", "")   # export OLD_USER_ID=<your-old-id>
+NEW_USER_ID = os.environ.get("NEW_USER_ID", "")   # export NEW_USER_ID=<your-new-id>
 
 
 async def main():
