@@ -33,7 +33,7 @@ python-dotenv==1.0.1
 
 # ── PDF Parsing ───────────────────────────────
 pdfplumber==0.10.4        # PDF table extraction (wraps pdfminer.six)
-python-magic-bin==0.4.14  # MIME type validation on Windows
+python-magic==0.4.27       # MIME type validation (Linux/macOS); use python-magic-bin on Windows
 pikepdf                   # Decrypt password-protected PDFs
 
 # ── Testing ───────────────────────────────────
