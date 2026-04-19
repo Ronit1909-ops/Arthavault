@@ -1,0 +1,143 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    @apply bg-[#0f1117] text-gray-100 antialiased;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar        { @apply w-1.5; }
+  ::-webkit-scrollbar-track  { background: #1a1d27; }
+  ::-webkit-scrollbar-thumb  { background: #2d3148; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3d4168; }
+}
+
+@layer components {
+
+  /* ── Cards ───────────────────────────────────────────────── */
+  .card {
+    @apply rounded-2xl border border-white/[0.06] bg-[#161929]/80
+           backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.4)];
+  }
+  .card-glass {
+    @apply rounded-2xl border border-white/[0.08]
+           bg-gradient-to-br from-white/[0.07] to-white/[0.03]
+           backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)];
+  }
+
+  /* ── Buttons ─────────────────────────────────────────────── */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2.5
+           bg-gradient-to-r from-violet-600 to-indigo-600
+           hover:from-violet-500 hover:to-indigo-500
+           text-white text-sm font-semibold rounded-xl
+           shadow-[0_0_20px_rgba(109,40,217,0.4)]
+           hover:shadow-[0_0_28px_rgba(109,40,217,0.6)]
+           transition-all duration-200 active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 focus:ring-offset-[#0f1117];
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2.5
+           bg-white/[0.06] hover:bg-white/[0.10]
+           border border-white/[0.08] hover:border-white/[0.15]
+           text-gray-300 hover:text-white text-sm font-medium rounded-xl
+           transition-all duration-200 active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-white/20;
+  }
+  .btn-danger {
+    @apply inline-flex items-center gap-2 px-4 py-2.5
+           bg-gradient-to-r from-red-600 to-rose-600
+           hover:from-red-500 hover:to-rose-500
+           text-white text-sm font-semibold rounded-xl
+           transition-all duration-200 active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  /* ── Inputs ──────────────────────────────────────────────── */
+  .input {
+    @apply w-full px-3.5 py-2.5 text-sm
+           bg-white/[0.05] border border-white/[0.09]
+           text-gray-100 placeholder-gray-500
+           rounded-xl transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-violet-500/60
+           focus:border-violet-500/60 focus:bg-white/[0.08];
+  }
+  select.input option {
+    @apply bg-[#1a1d2e] text-gray-100;
+  }
+
+  .label {
+    @apply block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5;
+  }
+
+  /* ── Badges ──────────────────────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
+           border border-transparent;
+  }
+
+  /* ── Glow effects ────────────────────────────────────────── */
+  .glow-violet { box-shadow: 0 0 40px rgba(109,40,217,0.25); }
+  .glow-blue   { box-shadow: 0 0 40px rgba(59,130,246,0.25); }
+  .glow-emerald{ box-shadow: 0 0 40px rgba(16,185,129,0.25); }
+
+  /* ── Table ───────────────────────────────────────────────── */
+  .table-dark {
+    @apply w-full text-sm;
+  }
+  .table-dark thead tr {
+    @apply border-b border-white/[0.06];
+  }
+  .table-dark thead th {
+    @apply px-5 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-widest;
+  }
+  .table-dark tbody tr {
+    @apply border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors;
+  }
+  .table-dark tbody td {
+    @apply px-5 py-3.5;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.35s ease-out both;
+  }
+  .animate-slide-up {
+    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4,0,0.6,1) infinite;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0);   }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0);    }
+  }
+}
+
+/* ── Ambient orbs (decorative) ───────────────────────────────── */
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.12;
+}
+.orb-violet { background: radial-gradient(circle, #7c3aed, transparent 70%); }
+.orb-blue   { background: radial-gradient(circle, #2563eb, transparent 70%); }
+.orb-pink   { background: radial-gradient(circle, #db2777, transparent 70%); }
