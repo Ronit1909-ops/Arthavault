@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # ── Google OAuth ─────────────────────────────────────────────────────
     google_client_id: str
     google_client_secret: str
-    google_redirect_uri: str = "http://localhost:8000/auth/callback"
+    google_redirect_uri: str = "https://arthavault.onrender.com/auth/callback"
 
     # ── JWT ──────────────────────────────────────────────────────────────
     jwt_secret: str
