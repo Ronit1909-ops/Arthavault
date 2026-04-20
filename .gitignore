@@ -43,7 +43,7 @@ Thumbs.db
 logs/
 
 # ── ML model files (large binaries) ──────────────────────────────────────────
-app/models/*.joblib
+#app/models/*.joblib
 
 # ── Test cache ────────────────────────────────────────────────────────────────
 .pytest_cache/
