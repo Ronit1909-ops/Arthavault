@@ -155,8 +155,8 @@ async def callback(
         value=jwt_token,
         httponly=True,
         max_age=settings.jwt_expire_seconds,
-        samesite="lax",
-        secure=settings.is_production,
+        samesite="none",
+        secure=True,
     )
     response.delete_cookie("oauth_state")
     return response
