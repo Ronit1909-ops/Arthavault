@@ -36,6 +36,16 @@ pdfplumber==0.10.4        # PDF table extraction (wraps pdfminer.six)
 python-magic==0.4.27       # MIME type validation (Linux/macOS); use python-magic-bin on Windows
 pikepdf                   # Decrypt password-protected PDFs
 
-# ── Testing ───────────────────────────────────
+# ── Testing ───────────────────────────────────────────────────────
 pytest==8.1.0
 pytest-asyncio==0.23.5
+
+# ── ML / Forecasting ─────────────────────────────────────────────
+pandas
+numpy
+scikit-learn
+joblib
+scipy
+prophet
+pystan
+cmdstanpy

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import {
   AlertTriangle, CheckCircle2, TrendingUp, Brain, X,
-  Target, Zap, Activity, Calendar,
+  Target, Zap, Activity, Calendar, RefreshCw,
 } from 'lucide-react'
 import Card from '../components/common/Card.jsx'
 import LoadingSpinner from '../components/common/LoadingSpinner.jsx'
@@ -138,22 +138,42 @@ export default function Insights() {
   const [anomalyError, setAE]     = useState(null)
   const [mlHealth, setMlHealth]   = useState(null)
 
-  useEffect(() => {
+  const loadForecast = useCallback(() => {
     if (!user?.id) return
-
-    // Forecast
     setFL(true)
+    setFE(null)
     api.ml.forecast(user.id, 30)
-      .then((d) => { setForecast(d); setFE(null) })
+      .then((d) => {
+        // Handle graceful unavailable response (available: false)
+        if (d.available === false) {
+          setForecast({ forecast: [], total_predicted: 0, confidence_interval: 'N/A' })
+          setFE(d.message || 'Forecasting unavailable')
+        } else {
+          setForecast(d)
+          setFE(null)
+        }
+      })
       .catch((e) => {
+        // 404 = no data at all; treat gracefully
         if (e.response?.status === 404) {
           setForecast({ forecast: [], total_predicted: 0, confidence_interval: '80%' })
           setFE(null)
         } else {
-          setFE(e.response?.data?.detail || 'Forecast unavailable')
+          setFE(
+            e.response?.data?.detail ||
+            e.response?.data?.message ||
+            'Forecasting unavailable — upload more statements to enable predictions'
+          )
         }
       })
       .finally(() => setFL(false))
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!user?.id) return
+
+    // Forecast
+    loadForecast()
 
     // Anomalies
     setAL(true)
@@ -169,7 +189,7 @@ export default function Insights() {
     api.transactions.getAll({ page_size: 200 })
       .then((r) => setTxns(r.data || []))
       .catch(() => {})
-  }, [user?.id])
+  }, [user?.id, loadForecast])
 
   // ── Budget: use CURRENT month transactions only ──────────────────────────────
   const catSpend = useMemo(() => {
@@ -259,7 +279,25 @@ export default function Insights() {
             <p className="text-gray-500 text-sm">Generating forecast…</p>
           </div>
         ) : forecastError ? (
-          <ErrorMessage message={forecastError} />
+          <div className="py-14 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center mx-auto mb-4">
+              <TrendingUp className="w-8 h-8 text-orange-500/60" />
+            </div>
+            <p className="text-white font-semibold text-sm mb-1">Forecasting unavailable</p>
+            <p className="text-gray-500 text-xs mb-5 max-w-xs mx-auto">
+              {forecastError}
+            </p>
+            <button
+              id="forecast-retry-btn"
+              onClick={loadForecast}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-rose-500
+                         text-white text-sm font-semibold rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.35)]
+                         hover:shadow-[0_0_28px_rgba(249,115,22,0.5)] transition-all duration-200"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Retry
+            </button>
+          </div>
         ) : !forecastChartData.length ? (
           <div className="py-14 text-center">
             <div className="w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center mx-auto mb-4">

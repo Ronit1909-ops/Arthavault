@@ -33,6 +33,7 @@ curl http://localhost:8000/ml/health
 from __future__ import annotations
 
 import logging
+import traceback
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -80,6 +81,8 @@ class ForecastRow(BaseModel):
 
 
 class ForecastResponse(BaseModel):
+    available:           bool = True
+    message:             Optional[str] = None
     forecast:            list[ForecastRow]
     total_predicted:     float
     confidence_interval: str
@@ -214,27 +217,68 @@ async def forecast_spending(
     Fetch the user's debit history from MongoDB and generate a day-by-day
     spending forecast using the pre-trained Prophet model.
 
+    Returns a graceful 'available: false' response (not a 500) when:
+      - Fewer than 30 debit transactions exist
+      - Prophet or stats fallback fails entirely
+
     curl example
     ------------
     curl "http://localhost:8000/ml/forecast/USER_ID?days=30"
     """
+    # ── Minimum data guard ────────────────────────────────────────────────────
+    try:
+        transaction_count = await db["transactions"].count_documents(
+            {"user_id": user_id, "type": "debit"}
+        )
+    except Exception as exc:
+        logger.error("GET /ml/forecast/%s — DB count error: %s", user_id, exc)
+        transaction_count = 999  # let it proceed; the forecast service will handle empty data
+
+    if transaction_count < 30:
+        return ForecastResponse(
+            available=False,
+            message=(
+                f"Need at least 30 transactions for forecasting. "
+                f"You have {transaction_count}."
+            ),
+            forecast=[],
+            total_predicted=0.0,
+            confidence_interval="N/A",
+        )
+
+    # ── Run forecast ──────────────────────────────────────────────────────────
     try:
         data = await svc.forecast_spending(user_id=user_id, days=days, db=db)
     except Exception as exc:
-        logger.error("GET /ml/forecast/%s error: %s", user_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Forecast generation failed. See server logs for details.",
+        logger.error(
+            "GET /ml/forecast/%s — forecasting failed:\n%s",
+            user_id,
+            traceback.format_exc(),
+        )
+        return ForecastResponse(
+            available=False,
+            message=f"Forecasting error: {str(exc)}",
+            forecast=[],
+            total_predicted=0.0,
+            confidence_interval="N/A",
         )
 
-    # Only 404 when there is literally no forecast list (no transactions at all)
+    # If the service returned no rows (shouldn't happen after the guard, but be safe)
     if not data.get("forecast"):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No transaction history found for user '{user_id}'.",
+        return ForecastResponse(
+            available=False,
+            message="Not enough usable transaction history for a forecast.",
+            forecast=[],
+            total_predicted=0.0,
+            confidence_interval="N/A",
         )
 
-    return ForecastResponse(**data)
+    return ForecastResponse(
+        available=True,
+        forecast=data["forecast"],
+        total_predicted=data["total_predicted"],
+        confidence_interval=data["confidence_interval"],
+    )
 
 
 @router.get(

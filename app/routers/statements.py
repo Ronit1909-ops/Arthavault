@@ -332,19 +332,32 @@ async def update_transaction_route(
     body: _TransactionUpdate,
     current_user: Annotated[UserResponse, Depends(get_current_user)],
 ):
-    """Update editable fields on a transaction owned by the current user."""
+    """
+    Update editable fields on a transaction owned by the current user.
+
+    When a category is changed and the transaction has a upi_id, ALL other
+    transactions for the same upi sender are also updated (propagation).
+
+    Returns the updated transaction plus:
+      - matched_count: total transactions updated (1 + propagated)
+      - upi_id: the UPI sender ID used for propagation (if any)
+    """
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
-    updated = await update_transaction(
+    result = await update_transaction(
         user_id=current_user.id,
         txn_id=txn_id,
         updates=updates,
     )
-    if updated is None:
+    if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Transaction '{txn_id}' not found.",
         )
-    return updated.model_dump()
+    # result is a dict: { transaction: TransactionResponse, matched_count: int, upi_id: str|None }
+    txn_data = result["transaction"].model_dump()
+    txn_data["matched_count"] = result.get("matched_count", 1)
+    txn_data["upi_id"] = result.get("upi_id")
+    return txn_data
 
 
 # ── Delete a single transaction ────────────────────────────────────────────────

@@ -33,8 +33,23 @@ function EditModal({ txn, onClose, onSaved }) {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await api.transactions.update(txn.id, form)
-      toast.success('Transaction updated')
+      const res = await api.transactions.update(txn.id, form)
+      const matchedCount = res?.matched_count || 1
+      const categoryChanged = form.category !== txn.category
+
+      if (categoryChanged && matchedCount > 1) {
+        toast.success(`Category updated for ${matchedCount} matching transactions`)
+      } else {
+        toast.success('Transaction updated')
+      }
+
+      // Fire storage event so Dashboard knows to refetch
+      if (categoryChanged) {
+        localStorage.setItem('arthavault_category_updated', Date.now().toString())
+        // Remove immediately so the event fires next time too
+        setTimeout(() => localStorage.removeItem('arthavault_category_updated'), 500)
+      }
+
       onSaved()
       onClose()
     } catch (e) {

@@ -167,14 +167,21 @@ async def update_transaction(
     user_id: str,
     txn_id: str,
     updates: dict,
-) -> Optional[TransactionResponse]:
+) -> Optional[dict]:
     """
     Patch editable fields (merchant, category, amount, type) on a transaction.
     Scoped to user_id so users can only update their own docs.
-    Returns the updated TransactionResponse or None if not found.
+
+    When category is updated and the transaction has a upi_id:
+      - All matching transactions for the same user+upi_id get the same category
+      - A payee_memory record is upserted so future uploads auto-categorize
+
+    Returns a dict with keys: 'transaction' (TransactionResponse), 'matched_count',
+    'upi_id'. Returns None if not found.
     """
     from bson import ObjectId
     from bson.errors import InvalidId
+    from datetime import datetime, timezone
 
     db  = get_database()
     col = db[_COL]
@@ -197,7 +204,74 @@ async def update_transaction(
     )
     if result is None:
         return None
-    return TransactionResponse.from_document(result)
+
+    matched_count = 1
+    upi_id = result.get("upi_id") or result.get("upi_ref")
+
+    # ── Propagate category to all matching transactions with same upi_id ───────
+    new_category = patch.get("category")
+    if new_category and upi_id:
+        try:
+            update_result = await col.update_many(
+                {
+                    "user_id": user_id,
+                    "upi_id": upi_id,
+                    "_id": {"$ne": oid},          # skip the one we just updated
+                },
+                {"$set": {"category": new_category, "needs_tagging": False}},
+            )
+            matched_count = 1 + update_result.modified_count
+            logger.info(
+                "Category '%s' propagated to %d transactions for upi_id=%s",
+                new_category, update_result.modified_count, upi_id,
+            )
+        except Exception as exc:
+            logger.warning("updateMany for upi_id=%s failed: %s", upi_id, exc)
+
+        # ── Also try matching on upi_ref if upi_id field isn't set ───────────
+        upi_ref = result.get("upi_ref")
+        if upi_ref and upi_ref != upi_id:
+            try:
+                ref_result = await col.update_many(
+                    {
+                        "user_id": user_id,
+                        "upi_ref": upi_ref,
+                        "_id": {"$ne": oid},
+                    },
+                    {"$set": {"category": new_category, "needs_tagging": False}},
+                )
+                matched_count += ref_result.modified_count
+            except Exception as exc:
+                logger.warning("updateMany for upi_ref=%s failed: %s", upi_ref, exc)
+
+        # ── Upsert payee_memory so future uploads auto-categorize ─────────────
+        if upi_id:
+            try:
+                pm_col = db["payee_memory"]
+                await pm_col.update_one(
+                    {"user_id": user_id, "upi_id": upi_id},
+                    {
+                        "$set": {
+                            "category": new_category,
+                            "merchant": result.get("merchant", ""),
+                            "updated_at": datetime.now(timezone.utc),
+                        },
+                        "$setOnInsert": {
+                            "created_at": datetime.now(timezone.utc),
+                        },
+                    },
+                    upsert=True,
+                )
+                logger.info("payee_memory upserted for upi_id=%s → %s", upi_id, new_category)
+            except Exception as exc:
+                logger.warning("payee_memory upsert failed for upi_id=%s: %s", upi_id, exc)
+
+    txn_response = TransactionResponse.from_document(result)
+    return {
+        "transaction": txn_response,
+        "matched_count": matched_count,
+        "upi_id": upi_id,
+    }
 
 
 # ── Delete ─────────────────────────────────────────────────────────────────────

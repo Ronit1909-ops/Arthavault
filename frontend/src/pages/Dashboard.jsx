@@ -1,19 +1,25 @@
 import React, { useEffect, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  ArrowUpRight, ArrowDownRight, IndianRupee, ReceiptText, ShoppingBag, TrendingUp,
-  Activity,
+  ArrowUpRight, ArrowDownRight, IndianRupee, ReceiptText, ShoppingBag,
+  Activity, Upload, RefreshCw,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Area, AreaChart, ReferenceLine,
+  XAxis, YAxis, CartesianGrid, Area, AreaChart,
 } from 'recharts'
 import Card from '../components/common/Card.jsx'
 import LoadingSpinner from '../components/common/LoadingSpinner.jsx'
 import ErrorMessage from '../components/common/ErrorMessage.jsx'
 import api from '../services/api.js'
-import { formatCurrency, formatDate, getCategoryHex, CATEGORY_HEX } from '../utils/formatters.js'
+import { formatCurrency, formatDate, getCategoryHex } from '../utils/formatters.js'
 import useAuthStore from '../store/authStore.js'
-import { useNavigate } from 'react-router-dom'
+
+// Categories that should NOT appear as "top category"
+const UNCATEGORIZED_LABELS = new Set([
+  'Uncategorized', 'uncategorized', 'Other', 'other',
+  'Miscellaneous', 'miscellaneous', 'Unknown', 'unknown',
+])
 
 // ── Summary card ─────────────────────────────────────────────────────────────
 function SummaryCard({ title, value, icon: Icon, gradient, trendValue, sub }) {
@@ -86,9 +92,10 @@ function CustomDot({ cx, cy, value }) {
 export default function Dashboard() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
-  const [txns, setTxns]       = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState(null)
+  const [txns, setTxns]           = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(null)
 
   const fetchData = async () => {
     setLoading(true)
@@ -96,6 +103,7 @@ export default function Dashboard() {
     try {
       const res = await api.transactions.getAll({ page_size: 200 })
       setTxns(res.data || [])
+      setLastUpdated(new Date())
     } catch (e) {
       setError(e.response?.data?.detail || 'Failed to load dashboard data')
     } finally {
@@ -103,7 +111,16 @@ export default function Dashboard() {
     }
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    fetchData()
+
+    // Refetch when another tab/page triggers a category update
+    const onStorageEvent = (e) => {
+      if (e.key === 'arthavault_category_updated') fetchData()
+    }
+    window.addEventListener('storage', onStorageEvent)
+    return () => window.removeEventListener('storage', onStorageEvent)
+  }, [])
 
   // ── Derived metrics ─────────────────────────────────────────────────────────
   const metrics = useMemo(() => {
@@ -127,7 +144,13 @@ export default function Dashboard() {
       ? Math.round(((thisMonthSpend - lastMonthSpend) / lastMonthSpend) * 100)
       : 0
 
-    // Category breakdown
+    // Distinct months (for the "X month(s) of data" card) — Bug 2 fix
+    const distinctMonths = [
+      ...new Set(debits.map((t) => (t.date || '').slice(0, 7)).filter(Boolean))
+    ]
+    const monthsOfData = distinctMonths.length
+
+    // Category breakdown (ALL categories, including Uncategorized — for pie chart)
     const catMap = {}
     debits.forEach((t) => {
       const c = t.category || 'Uncategorized'
@@ -137,11 +160,10 @@ export default function Dashboard() {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
 
+    // Top category — Bug 3 fix: exclude Uncategorized/Other labels
+    const topCategory = categoryData.find((c) => !UNCATEGORIZED_LABELS.has(c.name)) || null
 
     // ── Trend data: daily if ≤ 2 months, monthly if 3+ months ──────────────────
-    const distinctMonths = [
-      ...new Set(debits.map((t) => (t.date || '').slice(0, 7)).filter(Boolean))
-    ]
     const useDaily = distinctMonths.length <= 2
 
     let trendData = []
@@ -162,7 +184,7 @@ export default function Dashboard() {
       trendData  = Object.values(dayMap)
         .sort((a, b) => a.key.localeCompare(b.key))
         .map((m) => ({ ...m, amount: Math.round(m.amount) }))
-      trendLabel = `Daily · ${distinctMonths.length} month(s) of data`
+      trendLabel = `Daily · ${monthsOfData} month(s) of data`
     } else {
       // Monthly grouping for 3+ months
       const monthMap = {}
@@ -199,9 +221,9 @@ export default function Dashboard() {
       .slice(0, 5)
 
     return {
-      totalSpend, totalIncome, categoryData, trendData, topMerchants,
+      totalSpend, totalIncome, categoryData, topCategory, trendData, topMerchants,
       txnCount: txns.length, spendTrend, yMax, trendLabel, useDaily,
-      thisMonthSpend, lastMonthSpend,
+      thisMonthSpend, lastMonthSpend, monthsOfData,
     }
   }, [txns])
 
@@ -210,11 +232,64 @@ export default function Dashboard() {
   )
   if (error) return <ErrorMessage message={error} onRetry={fetchData} />
 
+  // ── Empty state ─────────────────────────────────────────────────────────────
+  if (txns.length === 0) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+            <p className="text-gray-400 text-sm mt-0.5">Welcome back, {user?.name?.split(' ')[0]}! 👋</p>
+          </div>
+        </div>
+        <div className="flex flex-col items-center justify-center py-24 gap-5">
+          <div className="w-20 h-20 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+            <ReceiptText className="w-10 h-10 text-violet-500/60" />
+          </div>
+          <div className="text-center">
+            <p className="text-white font-semibold text-lg">No transactions yet</p>
+            <p className="text-gray-500 text-sm mt-1">Upload your bank statement to get started</p>
+          </div>
+          <button
+            id="dashboard-upload-btn"
+            onClick={() => navigate('/upload')}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-indigo-600
+                       text-white font-semibold rounded-xl shadow-[0_0_24px_rgba(124,58,237,0.4)]
+                       hover:shadow-[0_0_32px_rgba(124,58,237,0.6)] transition-all duration-200"
+          >
+            <Upload className="w-4 h-4" />
+            Upload Statement
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="text-gray-400 text-sm mt-0.5">Welcome back, {user?.name?.split(' ')[0]}! 👋</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+          <p className="text-gray-400 text-sm mt-0.5">Welcome back, {user?.name?.split(' ')[0]}! 👋</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {lastUpdated && (
+            <p className="text-xs text-gray-600">
+              Last updated:{' '}
+              <span className="text-gray-500">
+                {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            </p>
+          )}
+          <button
+            id="dashboard-refresh-btn"
+            onClick={fetchData}
+            className="p-2 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
+            title="Refresh"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -232,19 +307,25 @@ export default function Dashboard() {
           icon={ArrowUpRight}
           gradient="bg-gradient-to-br from-emerald-500 to-teal-700"
         />
+        {/* Bug 2 fix: use monthsOfData (distinct months), not trendData.length (chart points) */}
         <SummaryCard
           title="Transactions"
           value={metrics.txnCount.toLocaleString()}
           icon={ReceiptText}
           gradient="bg-gradient-to-br from-blue-500 to-blue-700"
-          sub={`${metrics.trendData.length} month(s) of data`}
+          sub={`${metrics.monthsOfData} month(s) of data`}
         />
+        {/* Bug 3 fix: show real top category, not Uncategorized */}
         <SummaryCard
           title="Top Category"
-          value={metrics.categoryData[0]?.name || '—'}
+          value={metrics.topCategory ? metrics.topCategory.name : 'Not enough data'}
           icon={ShoppingBag}
           gradient="bg-gradient-to-br from-orange-500 to-rose-600"
-          sub={metrics.categoryData[0] ? formatCurrency(metrics.categoryData[0].value) : ''}
+          sub={
+            metrics.topCategory
+              ? formatCurrency(metrics.topCategory.value)
+              : 'Tag some transactions to see your top category'
+          }
         />
       </div>
 
