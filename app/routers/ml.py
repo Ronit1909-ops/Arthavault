@@ -99,8 +99,9 @@ class AnomalyItem(BaseModel):
 
 
 class AnomalyResponse(BaseModel):
-    anomalies: list[AnomalyItem]
-    count:     int
+    anomalies:    list[AnomalyItem]
+    count:        int
+    models_ready: bool = True  # False when anomaly models are not loaded
 
 
 class MLHealthResponse(BaseModel):
@@ -310,8 +311,12 @@ async def detect_anomalies(
             detail="Anomaly detection failed. See server logs for details.",
         )
 
+    # If models aren't loaded, the service returns [] — communicate that to the client
+    if not svc.anomaly_ready:
+        return AnomalyResponse(anomalies=[], count=0, models_ready=False)
+
     anomalies = [AnomalyItem(**item) for item in items]
-    return AnomalyResponse(anomalies=anomalies, count=len(anomalies))
+    return AnomalyResponse(anomalies=anomalies, count=len(anomalies), models_ready=True)
 
 
 @router.get(

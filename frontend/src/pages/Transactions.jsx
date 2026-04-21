@@ -250,19 +250,19 @@ export default function Transactions() {
 
       {/* Filters */}
       <Card className="p-4">
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-2">
           {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-[180px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input
               className="input pl-9"
-              placeholder="Search merchant or description…"
+              placeholder="Search merchant…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           {/* Bank */}
-          <select className="input w-auto min-w-[110px]" value={bankFilter} onChange={(e) => setBankFilter(e.target.value)}>
+          <select className="input w-auto min-w-[100px]" value={bankFilter} onChange={(e) => setBankFilter(e.target.value)}>
             <option value="">All Banks</option>
             {BANKS.map((b) => <option key={b} value={b}>{BANK_LABELS[b] || b.toUpperCase()}</option>)}
           </select>
@@ -273,8 +273,10 @@ export default function Transactions() {
             <option value="credit">Credit</option>
           </select>
           {/* Date range */}
-          <input type="date" className="input w-auto" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
-          <input type="date" className="input w-auto" value={dateTo}   onChange={(e) => setDateTo(e.target.value)}   title="To date"   />
+          <div className="flex gap-2 flex-wrap">
+            <input type="date" className="input w-auto" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
+            <input type="date" className="input w-auto" value={dateTo}   onChange={(e) => setDateTo(e.target.value)}   title="To date"   />
+          </div>
           {hasFilters && (
             <Button variant="secondary" onClick={() => {
               setSearch(''); setBankFilter(''); setTypeFilter(''); setDateFrom(''); setDateTo('')
@@ -303,74 +305,129 @@ export default function Transactions() {
             <p className="text-gray-600 text-xs mt-1">Try adjusting your filters or upload a statement.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/[0.06]">
-                  {['Date','Merchant','Category','Amount','Type','Bank','Actions'].map((h, i) => (
-                    <th key={h} className={`px-5 py-3.5 text-[11px] font-bold text-gray-500 uppercase tracking-widest
-                      ${i === 3 ? 'text-right' : i === 6 ? 'text-center' : 'text-left'}`}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {txns.map((t) => (
-                  <tr key={t.id}
-                    className="border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors group">
-                    {/* Date */}
-                    <td className="px-5 py-3.5 text-gray-400 whitespace-nowrap text-sm">
-                      {formatDate(t.date)}
-                    </td>
-                    {/* Merchant */}
-                    <td className="px-5 py-3.5 max-w-[200px]">
-                      <p className="font-semibold text-gray-100 truncate">{t.merchant || '—'}</p>
-                      <p className="text-[11px] text-gray-600 truncate mt-0.5">{t.description}</p>
-                    </td>
-                    {/* Category */}
-                    <td className="px-5 py-3.5">
-                      <CategoryBadge category={t.category} />
-                    </td>
-                    {/* Amount */}
-                    <td className="px-5 py-3.5 text-right">
-                      <span className={`font-bold text-base ${t.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>
+          <>
+            {/* ── Mobile card list (hidden on md+) ───────────────────────── */}
+            <div className="md:hidden divide-y divide-white/[0.04]">
+              {txns.map((t) => (
+                <div key={t.id} className="px-4 py-3.5 flex items-start gap-3 hover:bg-white/[0.02] transition-colors">
+                  {/* Debit/Credit indicator */}
+                  <div className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5 ${
+                    t.type === 'credit' ? 'bg-emerald-500/15' : 'bg-red-500/15'
+                  }`}>
+                    {t.type === 'credit'
+                      ? <ArrowDownLeft className="w-4 h-4 text-emerald-400" />
+                      : <ArrowUpRight className="w-4 h-4 text-red-400" />}
+                  </div>
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-100 truncate text-sm">{t.merchant || '—'}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">{formatDate(t.date)}</p>
+                      </div>
+                      <span className={`font-bold text-sm flex-shrink-0 ${
+                        t.type === 'credit' ? 'text-emerald-400' : 'text-red-400'
+                      }`}>
                         {t.type === 'debit' ? '−' : '+'}{formatCurrency(t.amount)}
                       </span>
-                    </td>
-                    {/* Type */}
-                    <td className="px-5 py-3.5">
-                      <TypeBadge type={t.type} />
-                    </td>
-                    {/* Bank */}
-                    <td className="px-5 py-3.5">
-                      <span className="px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.08]
-                                       text-xs font-bold text-gray-400 uppercase">
+                    </div>
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <CategoryBadge category={t.category} />
+                      <span className="px-1.5 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.08]
+                                       text-[10px] font-bold text-gray-500 uppercase">
                         {BANK_LABELS[t.bank] || t.bank}
                       </span>
-                    </td>
-                    {/* Actions */}
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => setEditTxn(t)}
-                          className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
-                          aria-label="Edit">
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteTxn(t)}
-                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                          aria-label="Delete">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+                    </div>
+                  </div>
+                  {/* Actions */}
+                  <div className="flex flex-col gap-1.5 flex-shrink-0">
+                    <button
+                      onClick={() => setEditTxn(t)}
+                      className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
+                      aria-label="Edit">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteTxn(t)}
+                      className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                      aria-label="Delete">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Desktop table (hidden on mobile) ───────────────────────── */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/[0.06]">
+                    {['Date','Merchant','Category','Amount','Type','Bank','Actions'].map((h, i) => (
+                      <th key={h} className={`px-5 py-3.5 text-[11px] font-bold text-gray-500 uppercase tracking-widest
+                        ${i === 3 ? 'text-right' : i === 6 ? 'text-center' : 'text-left'}`}>
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {txns.map((t) => (
+                    <tr key={t.id}
+                      className="border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors group">
+                      {/* Date */}
+                      <td className="px-5 py-3.5 text-gray-400 whitespace-nowrap text-sm">
+                        {formatDate(t.date)}
+                      </td>
+                      {/* Merchant */}
+                      <td className="px-5 py-3.5 max-w-[200px]">
+                        <p className="font-semibold text-gray-100 truncate">{t.merchant || '—'}</p>
+                        <p className="text-[11px] text-gray-600 truncate mt-0.5">{t.description}</p>
+                      </td>
+                      {/* Category */}
+                      <td className="px-5 py-3.5">
+                        <CategoryBadge category={t.category} />
+                      </td>
+                      {/* Amount */}
+                      <td className="px-5 py-3.5 text-right">
+                        <span className={`font-bold text-base ${t.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {t.type === 'debit' ? '−' : '+'}{formatCurrency(t.amount)}
+                        </span>
+                      </td>
+                      {/* Type */}
+                      <td className="px-5 py-3.5">
+                        <TypeBadge type={t.type} />
+                      </td>
+                      {/* Bank */}
+                      <td className="px-5 py-3.5">
+                        <span className="px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.08]
+                                         text-xs font-bold text-gray-400 uppercase">
+                          {BANK_LABELS[t.bank] || t.bank}
+                        </span>
+                      </td>
+                      {/* Actions */}
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => setEditTxn(t)}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
+                            aria-label="Edit">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteTxn(t)}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                            aria-label="Delete">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         {/* Pagination */}

@@ -137,6 +137,8 @@ export default function Insights() {
   const [forecastError, setFE]    = useState(null)
   const [anomalyError, setAE]     = useState(null)
   const [mlHealth, setMlHealth]   = useState(null)
+  const [anomalyModelsReady, setAMR] = useState(null) // null = unknown
+  const [txnCount, setTxnCount]   = useState(null) // null = loading, 0 = none
 
   const loadForecast = useCallback(() => {
     if (!user?.id) return
@@ -178,12 +180,21 @@ export default function Insights() {
     // Anomalies
     setAL(true)
     api.ml.anomalies(user.id, 30)
-      .then((d) => { setAnomalies(d.anomalies || []); setAE(null) })
+      .then((d) => {
+        setAnomalies(d.anomalies || [])
+        setAMR(d.models_ready !== false) // default true if field absent
+        setAE(null)
+      })
       .catch((e) => setAE(e.response?.data?.detail || 'Anomaly data unavailable'))
       .finally(() => setAL(false))
 
     // ML health
-    api.ml.health().then(setMlHealth).catch(() => {})
+    api.ml.health().then((h) => { setMlHealth(h) }).catch(() => {})
+
+    // Transactions count — to distinguish "no data" from "no anomalies"
+    api.transactions.getAll({ page_size: 1 })
+      .then((r) => setTxnCount(r.total ?? (r.data?.length ?? 0)))
+      .catch(() => setTxnCount(0))
 
     // Transactions for budget bars (current month)
     api.transactions.getAll({ page_size: 200 })
@@ -223,6 +234,9 @@ export default function Insights() {
   }, [forecastChartData])
 
   const visibleAnomalies = anomalies.filter((a) => !dismissed.has(a.transaction_id))
+  // True "no anomalies" only when we have data AND models are checked
+  const hasTransactionData = txnCount !== null && txnCount > 0
+  const mlModelsReady = anomalyModelsReady
   const totalPredicted = forecast?.total_predicted || 0
   const avgDaily = forecastChartData.length > 0
     ? totalPredicted / forecastChartData.length
@@ -467,6 +481,36 @@ export default function Insights() {
             </div>
           ) : anomalyError ? (
             <ErrorMessage message={anomalyError} />
+          ) : !hasTransactionData ? (
+            // No transactions uploaded at all
+            <div className="py-10 text-center">
+              <div className="w-12 h-12 rounded-xl bg-gray-500/10 flex items-center justify-center mx-auto mb-3">
+                <AlertTriangle className="w-6 h-6 text-gray-600" />
+              </div>
+              <p className="text-gray-400 font-semibold text-sm">No data to analyse</p>
+              <p className="text-gray-600 text-xs mt-1">
+                Upload a bank statement first to enable anomaly detection.
+              </p>
+              <Link
+                to="/upload"
+                className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 text-xs font-semibold
+                           bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl
+                           hover:bg-red-500/20 transition-colors"
+              >
+                Upload Statement
+              </Link>
+            </div>
+          ) : mlModelsReady === false ? (
+            // Models not loaded
+            <div className="py-10 text-center">
+              <div className="w-12 h-12 rounded-xl bg-yellow-500/10 flex items-center justify-center mx-auto mb-3">
+                <AlertTriangle className="w-6 h-6 text-yellow-500" />
+              </div>
+              <p className="text-yellow-400 font-semibold text-sm">ML models not loaded</p>
+              <p className="text-gray-500 text-xs mt-1">
+                The anomaly detection model is not available on this server.
+              </p>
+            </div>
           ) : visibleAnomalies.length === 0 ? (
             <div className="py-10 text-center">
               <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-3">

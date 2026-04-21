@@ -13,7 +13,6 @@ import { formatCurrency } from '../utils/formatters.js'
 import { addUploadNotification } from '../components/common/NotificationDropdown.jsx'
 
 const BANKS = [
-  { value: '',       label: 'Auto-detect'         },
   { value: 'sbi',   label: 'State Bank of India'  },
   { value: 'hdfc',  label: 'HDFC Bank'            },
   { value: 'icici', label: 'ICICI Bank'           },
@@ -54,6 +53,10 @@ export default function Upload() {
 
   const handleUpload = async () => {
     if (!file) return
+    if (!bank) {
+      toast.error('Please select your bank before uploading.')
+      return
+    }
     setUploading(true)
     setProgress(0)
     setUploadError(null)
@@ -141,15 +144,29 @@ export default function Upload() {
               <div className="mt-4 space-y-3">
                 {/* Options row */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Bank selector */}
+                  {/* Bank selector — required */}
                   <div>
-                    <label className="label">Bank (optional)</label>
+                    <label className="label">
+                      Select Bank <span className="text-red-400 normal-case tracking-normal font-bold">*</span>
+                    </label>
                     <div className="relative">
                       <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <select className="input pl-9" value={bank} onChange={(e) => setBank(e.target.value)}>
+                      <select
+                        className={`input pl-9 ${
+                          file && !bank ? 'border-red-500/50 focus:ring-red-500/40' : ''
+                        }`}
+                        value={bank}
+                        onChange={(e) => setBank(e.target.value)}
+                      >
+                        <option value="" disabled>— Select your bank —</option>
                         {BANKS.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
                       </select>
                     </div>
+                    {file && !bank && (
+                      <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> Bank selection is required
+                      </p>
+                    )}
                   </div>
                   {/* Password */}
                   <div>
@@ -195,7 +212,7 @@ export default function Upload() {
                   <Button variant="secondary" onClick={clearFile} disabled={uploading}>
                     <X className="w-4 h-4" /> Remove
                   </Button>
-                  <Button onClick={handleUpload} loading={uploading} disabled={!file}>
+                  <Button onClick={handleUpload} loading={uploading} disabled={!file || !bank}>
                     <UploadCloud className="w-4 h-4" />
                     {uploading ? 'Uploading…' : 'Upload Statement'}
                   </Button>
